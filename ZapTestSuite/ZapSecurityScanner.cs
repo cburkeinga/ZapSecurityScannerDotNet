@@ -39,11 +39,12 @@ namespace ZapSecurityScan
                 zapURL = new UriBuilder(zapProxyURL);
                 targetURL = new UriBuilder(baseURL);
                 log.Info("Setup - Zap Proxy: " + zapURL.Scheme + "://" + zapURL.Host + "   Target URL: " + targetURL.ToString());
-                zapClientAPI = new ClientApi(zapURL.Host,8080 , ZAP_API_KEY); 
+                zapClientAPI = new ClientApi(zapURL.Host,8088 , ZAP_API_KEY); 
                 log.Info("Enable Passive Scanners");
-                zapClientAPI.pscan.enableAllScanners(ZAP_API_KEY);
-                log.Info("Generate Root CA");
-                zapClientAPI.core.generateRootCA(ZAP_API_KEY);
+                //zapClientAPI.pscan.enableAllScanners(ZAP_API_KEY);
+                zapClientAPI.pscan.enableAllScanners();
+                //log.Info("Generate Root CA");
+                //zapClientAPI.core.generateRootCA();
 
             }
             catch (Exception e)
@@ -56,7 +57,7 @@ namespace ZapSecurityScan
             {
 
                 log.Info("Create ZAP Context and set scope");
-                contextid = zapClientAPI.context.newContext(ZAP_API_KEY, "ZSS").ToString();
+                contextid = zapClientAPI.context.newContext( "ZSS").ToString();
 
             }
             catch (Exception e)
@@ -65,12 +66,12 @@ namespace ZapSecurityScan
             } finally {
 				try
 				{
-					string httptarget = "http://" + targetURL.Host + targetURL.Path + ".*";
-					string httpstarget = "https://" + targetURL.Host + targetURL.Path + ".*";
+					string httptarget = "http://" + targetURL.Host + ":" + targetURL.Port + targetURL.Path + ".*";
+					string httpstarget = "https://" + targetURL.Host + ":" + targetURL.Port +  targetURL.Path + ".*";
                     log.Info("Set Zap scope to include: " + httptarget);
-                    zapClientAPI.context.includeInContext(ZAP_API_KEY,"ZSS", httptarget);
+                    zapClientAPI.context.includeInContext("Default Context", httptarget);
 					log.Info("Set Zap scope to include: " + httpstarget);
-                    zapClientAPI.context.includeInContext(ZAP_API_KEY,"ZSS", httpstarget);
+                    zapClientAPI.context.includeInContext("Default Context", httpstarget);
 				}
 				catch (Exception e)
 				{
@@ -92,16 +93,21 @@ namespace ZapSecurityScan
 
 			try
 			{
+                zapClientAPI.spider.scan(scanURL, "10", recurse,"","");
+                
                 log.Info("Actively scanning: " + scanURL);
 				log.Info("Recursive: " + recurse);
                 /// set XSS attack strength
                 /// 
                 //log.Info("Context " + zapClientAPI.context.context(ZAP_API_KEY).Name.ToString());
 
-                zapClientAPI.ascan.setScannerAttackStrength(ZAP_API_KEY,"40018", "HIGH", "Default Policy");
+                log.Info("Set scanner parameters");
+                zapClientAPI.ascan.setScannerAttackStrength("40018", "HIGH", "Default Policy");
+
+                log.Info("Call active scan on: " + scanURL + "/");
                 //var response = zapClientAPI.ascan.scan(ZAP_API_KEY,scanURL , recurse, "True", null, null, null,
                 //                                       zapClientAPI.context.context(ZAP_API_KEY).Name);
-				var response = zapClientAPI.ascan.scan(ZAP_API_KEY, scanURL+"/", recurse, "True", "", "", "","");
+                var response = zapClientAPI.ascan.scan( scanURL, recurse, "True", "", "", "","");
 
  				/// The scan now returns a scan id to support concurrent scanning
 				scanid = ((ApiResponseElement)response).Value;
@@ -143,7 +149,7 @@ namespace ZapSecurityScan
 
 
 				List<Alert> filtered = new List<Alert>();
-                foreach (Alert alert in zapClientAPI.GetAlerts(scanURL, 0, 1000))
+                foreach (Alert alert in zapClientAPI.GetAlerts(scanURL, 0, 1000,  "LOW") )  // GetAlerts(scanURL, 0, 1000))
 				{
                     if (string.Equals(confidence, "medium", StringComparison.OrdinalIgnoreCase))
                         if (alert.Confidence == Alert.ConfidenceLevel.High || alert.Confidence == Alert.ConfidenceLevel.Medium)
@@ -188,7 +194,7 @@ namespace ZapSecurityScan
 
 			try
 			{
-                  zapClientAPI.core.shutdown(ZAP_API_KEY);
+                  zapClientAPI.core.shutdown();
 			}
 			catch (Exception e)
 			{
@@ -204,7 +210,7 @@ namespace ZapSecurityScan
 			string xml_report;
 			try
 			{
-                xml_report = System.Text.Encoding.UTF8.GetString(zapClientAPI.core.xmlreport(ZAP_API_KEY));
+                xml_report = System.Text.Encoding.UTF8.GetString(zapClientAPI.core.xmlreport());
 			}
 			catch (Exception e)
 			{
@@ -221,7 +227,7 @@ namespace ZapSecurityScan
 				string html_report;
 				try
 				{
-                html_report = System.Text.Encoding.UTF8.GetString(zapClientAPI.core.htmlreport(ZAP_API_KEY));
+                html_report = System.Text.Encoding.UTF8.GetString(zapClientAPI.core.htmlreport());
 				}
 				catch (Exception e)
 				{
@@ -234,7 +240,7 @@ namespace ZapSecurityScan
         // get certificate
         public byte[] GetZapCertificate() 
         {
-            return zapClientAPI.core.rootcert(ZAP_API_KEY);
+            return zapClientAPI.core.rootcert();
         }
 		
 
